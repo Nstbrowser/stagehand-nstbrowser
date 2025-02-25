@@ -5,10 +5,10 @@ dotenv.config();
 
 const StagehandConfig: ConstructorParams = {
   env:
-    process.env.BROWSERBASE_API_KEY && process.env.BROWSERBASE_PROJECT_ID
+    process.env.NSTBROWSER_API_KEY && process.env.BROWSERBASE_PROJECT_ID
       ? "BROWSERBASE"
       : "LOCAL",
-  apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
+  apiKey: process.env.NSTBROWSER_API_KEY /* API key for authentication */,
   projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
   debugDom: true /* Enable DOM debugging features */,
   headless: false /* Run browser in headless mode */,
@@ -22,6 +22,8 @@ const StagehandConfig: ConstructorParams = {
   browserbaseSessionID:
     undefined /* Session ID for resuming Browserbase sessions */,
   modelName: "gpt-4o" /* Name of the model to use */,
+  nstbrowserParams: {},
+  profileId: process.env.NSTBROWSER_PROFILE_ID,
   modelClientOptions: {
     apiKey: process.env.OPENAI_API_KEY,
   } /* Configuration options for the model client */,

@@ -1,10 +1,10 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { chromium } from "@playwright/test";
+// import { chromium } from "@playwright/test";
 import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
-import os from "os";
-import path from "path";
+// import os from "os";
+// import path from "path";
 import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { LogLine } from "../types/log";
@@ -24,6 +24,7 @@ import {
   LocalBrowserLaunchOptions,
   ObserveOptions,
   ObserveResult,
+  NstbrowserParams,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
@@ -32,317 +33,318 @@ import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString, isRunningInBun } from "./utils";
+import { getNstBrowser } from "./getNstbrowser";
 
 dotenv.config({ path: ".env" });
 
 const DEFAULT_MODEL_NAME = "gpt-4o";
-const BROWSERBASE_REGION_DOMAIN = {
-  "us-west-2": "wss://connect.usw2.browserbase.com",
-  "us-east-1": "wss://connect.use1.browserbase.com",
-  "eu-central-1": "wss://connect.euc1.browserbase.com",
-  "ap-southeast-1": "wss://connect.apse1.browserbase.com",
-};
+// const BROWSERBASE_REGION_DOMAIN = {
+//   "us-west-2": "wss://connect.usw2.browserbase.com",
+//   "us-east-1": "wss://connect.use1.browserbase.com",
+//   "eu-central-1": "wss://connect.euc1.browserbase.com",
+//   "ap-southeast-1": "wss://connect.apse1.browserbase.com",
+// };
 
-async function getBrowser(
-  apiKey: string | undefined,
-  projectId: string | undefined,
-  env: "LOCAL" | "BROWSERBASE" = "LOCAL",
-  headless: boolean = false,
-  logger: (message: LogLine) => void,
-  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
-  browserbaseSessionID?: string,
-  localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
-): Promise<BrowserResult> {
-  if (env === "BROWSERBASE") {
-    if (!apiKey) {
-      logger({
-        category: "init",
-        message:
-          "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
-        level: 0,
-      });
-      env = "LOCAL";
-    }
-    if (!projectId) {
-      logger({
-        category: "init",
-        message:
-          "BROWSERBASE_PROJECT_ID is required for some Browserbase features that may not work without it.",
-        level: 1,
-      });
-    }
-  }
+// async function getBrowser(
+//   apiKey: string | undefined,
+//   projectId: string | undefined,
+//   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
+//   headless: boolean = false,
+//   logger: (message: LogLine) => void,
+//   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
+//   browserbaseSessionID?: string,
+//   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
+// ): Promise<BrowserResult> {
+//   if (env === "BROWSERBASE") {
+//     if (!apiKey) {
+//       logger({
+//         category: "init",
+//         message:
+//           "NSTBROWSER_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
+//         level: 0,
+//       });
+//       env = "LOCAL";
+//     }
+//     if (!projectId) {
+//       logger({
+//         category: "init",
+//         message:
+//           "BROWSERBASE_PROJECT_ID is required for some Browserbase features that may not work without it.",
+//         level: 1,
+//       });
+//     }
+//   }
 
-  if (env === "BROWSERBASE") {
-    if (!apiKey) {
-      throw new Error("BROWSERBASE_API_KEY is required.");
-    }
+//   if (env === "BROWSERBASE") {
+//     if (!apiKey) {
+//       throw new Error("NSTBROWSER_API_KEY is required.");
+//     }
 
-    let debugUrl: string | undefined = undefined;
-    let sessionUrl: string | undefined = undefined;
-    let sessionId: string;
-    let connectUrl: string;
+//     let debugUrl: string | undefined = undefined;
+//     let sessionUrl: string | undefined = undefined;
+//     let sessionId: string;
+//     let connectUrl: string;
 
-    const browserbase = new Browserbase({
-      apiKey,
-    });
+//     const browserbase = new Browserbase({
+//       apiKey,
+//     });
 
-    if (browserbaseSessionID) {
-      // Validate the session status
-      try {
-        const sessionStatus =
-          await browserbase.sessions.retrieve(browserbaseSessionID);
+//     if (browserbaseSessionID) {
+//       // Validate the session status
+//       try {
+//         const sessionStatus =
+//           await browserbase.sessions.retrieve(browserbaseSessionID);
 
-        if (sessionStatus.status !== "RUNNING") {
-          throw new Error(
-            `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
-          );
-        }
+//         if (sessionStatus.status !== "RUNNING") {
+//           throw new Error(
+//             `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
+//           );
+//         }
 
-        sessionId = browserbaseSessionID;
-        const browserbaseDomain =
-          BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
-          "wss://connect.browserbase.com";
-        connectUrl = `${browserbaseDomain}?apiKey=${apiKey}&sessionId=${sessionId}`;
+//         sessionId = browserbaseSessionID;
+//         const browserbaseDomain =
+//           BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
+//           "wss://connect.browserbase.com";
+//         connectUrl = `${browserbaseDomain}?apiKey=${apiKey}&sessionId=${sessionId}`;
 
-        logger({
-          category: "init",
-          message: "resuming existing browserbase session...",
-          level: 1,
-          auxiliary: {
-            sessionId: {
-              value: sessionId,
-              type: "string",
-            },
-          },
-        });
-      } catch (error) {
-        logger({
-          category: "init",
-          message: "failed to resume session",
-          level: 1,
-          auxiliary: {
-            error: {
-              value: error.message,
-              type: "string",
-            },
-            trace: {
-              value: error.stack,
-              type: "string",
-            },
-          },
-        });
-        throw error;
-      }
-    } else {
-      // Create new session (existing code)
-      logger({
-        category: "init",
-        message: "creating new browserbase session...",
-        level: 0,
-      });
+//         logger({
+//           category: "init",
+//           message: "resuming existing browserbase session...",
+//           level: 1,
+//           auxiliary: {
+//             sessionId: {
+//               value: sessionId,
+//               type: "string",
+//             },
+//           },
+//         });
+//       } catch (error) {
+//         logger({
+//           category: "init",
+//           message: "failed to resume session",
+//           level: 1,
+//           auxiliary: {
+//             error: {
+//               value: error.message,
+//               type: "string",
+//             },
+//             trace: {
+//               value: error.stack,
+//               type: "string",
+//             },
+//           },
+//         });
+//         throw error;
+//       }
+//     } else {
+//       // Create new session (existing code)
+//       logger({
+//         category: "init",
+//         message: "creating new browserbase session...",
+//         level: 0,
+//       });
 
-      if (!projectId) {
-        throw new Error(
-          "BROWSERBASE_PROJECT_ID is required for new Browserbase sessions.",
-        );
-      }
+//       if (!projectId) {
+//         throw new Error(
+//           "BROWSERBASE_PROJECT_ID is required for new Browserbase sessions.",
+//         );
+//       }
 
-      const session = await browserbase.sessions.create({
-        projectId,
-        ...browserbaseSessionCreateParams,
-      });
+//       const session = await browserbase.sessions.create({
+//         projectId,
+//         ...browserbaseSessionCreateParams,
+//       });
 
-      sessionId = session.id;
-      connectUrl = session.connectUrl;
-      logger({
-        category: "init",
-        message: "created new browserbase session",
-        level: 1,
-        auxiliary: {
-          sessionId: {
-            value: sessionId,
-            type: "string",
-          },
-        },
-      });
-    }
+//       sessionId = session.id;
+//       connectUrl = session.connectUrl;
+//       logger({
+//         category: "init",
+//         message: "created new browserbase session",
+//         level: 1,
+//         auxiliary: {
+//           sessionId: {
+//             value: sessionId,
+//             type: "string",
+//           },
+//         },
+//       });
+//     }
 
-    const browser = await chromium.connectOverCDP(connectUrl);
-    const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
+//     const browser = await chromium.connectOverCDP(connectUrl);
+//     const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
 
-    debugUrl = debuggerUrl;
-    sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+//     debugUrl = debuggerUrl;
+//     sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
 
-    logger({
-      category: "init",
-      message: browserbaseSessionID
-        ? "browserbase session resumed"
-        : "browserbase session started",
-      level: 0,
-      auxiliary: {
-        sessionUrl: {
-          value: sessionUrl,
-          type: "string",
-        },
-        debugUrl: {
-          value: debugUrl,
-          type: "string",
-        },
-        sessionId: {
-          value: sessionId,
-          type: "string",
-        },
-      },
-    });
+//     logger({
+//       category: "init",
+//       message: browserbaseSessionID
+//         ? "browserbase session resumed"
+//         : "browserbase session started",
+//       level: 0,
+//       auxiliary: {
+//         sessionUrl: {
+//           value: sessionUrl,
+//           type: "string",
+//         },
+//         debugUrl: {
+//           value: debugUrl,
+//           type: "string",
+//         },
+//         sessionId: {
+//           value: sessionId,
+//           type: "string",
+//         },
+//       },
+//     });
 
-    const context = browser.contexts()[0];
+//     const context = browser.contexts()[0];
 
-    return { browser, context, debugUrl, sessionUrl, sessionId, env };
-  } else {
-    logger({
-      category: "init",
-      message: "launching local browser",
-      level: 0,
-      auxiliary: {
-        headless: {
-          value: headless.toString(),
-          type: "boolean",
-        },
-      },
-    });
+//     return { browser, context, debugUrl, sessionUrl, sessionId, env };
+//   } else {
+//     logger({
+//       category: "init",
+//       message: "launching local browser",
+//       level: 0,
+//       auxiliary: {
+//         headless: {
+//           value: headless.toString(),
+//           type: "boolean",
+//         },
+//       },
+//     });
 
-    if (localBrowserLaunchOptions) {
-      logger({
-        category: "init",
-        message: "local browser launch options",
-        level: 0,
-        auxiliary: {
-          localLaunchOptions: {
-            value: JSON.stringify(localBrowserLaunchOptions),
-            type: "string",
-          },
-        },
-      });
-    }
+//     if (localBrowserLaunchOptions) {
+//       logger({
+//         category: "init",
+//         message: "local browser launch options",
+//         level: 0,
+//         auxiliary: {
+//           localLaunchOptions: {
+//             value: JSON.stringify(localBrowserLaunchOptions),
+//             type: "string",
+//           },
+//         },
+//       });
+//     }
 
-    let userDataDir = localBrowserLaunchOptions?.userDataDir;
-    if (!userDataDir) {
-      const tmpDirPath = path.join(os.tmpdir(), "stagehand");
-      if (!fs.existsSync(tmpDirPath)) {
-        fs.mkdirSync(tmpDirPath, { recursive: true });
-      }
+//     let userDataDir = localBrowserLaunchOptions?.userDataDir;
+//     if (!userDataDir) {
+//       const tmpDirPath = path.join(os.tmpdir(), "stagehand");
+//       if (!fs.existsSync(tmpDirPath)) {
+//         fs.mkdirSync(tmpDirPath, { recursive: true });
+//       }
 
-      const tmpDir = fs.mkdtempSync(path.join(tmpDirPath, "ctx_"));
-      fs.mkdirSync(path.join(tmpDir, "userdir/Default"), { recursive: true });
+//       const tmpDir = fs.mkdtempSync(path.join(tmpDirPath, "ctx_"));
+//       fs.mkdirSync(path.join(tmpDir, "userdir/Default"), { recursive: true });
 
-      const defaultPreferences = {
-        plugins: {
-          always_open_pdf_externally: true,
-        },
-      };
+//       const defaultPreferences = {
+//         plugins: {
+//           always_open_pdf_externally: true,
+//         },
+//       };
 
-      fs.writeFileSync(
-        path.join(tmpDir, "userdir/Default/Preferences"),
-        JSON.stringify(defaultPreferences),
-      );
-      userDataDir = path.join(tmpDir, "userdir");
-    }
+//       fs.writeFileSync(
+//         path.join(tmpDir, "userdir/Default/Preferences"),
+//         JSON.stringify(defaultPreferences),
+//       );
+//       userDataDir = path.join(tmpDir, "userdir");
+//     }
 
-    let downloadsPath = localBrowserLaunchOptions?.downloadsPath;
-    if (!downloadsPath) {
-      downloadsPath = path.join(process.cwd(), "downloads");
-      fs.mkdirSync(downloadsPath, { recursive: true });
-    }
+//     let downloadsPath = localBrowserLaunchOptions?.downloadsPath;
+//     if (!downloadsPath) {
+//       downloadsPath = path.join(process.cwd(), "downloads");
+//       fs.mkdirSync(downloadsPath, { recursive: true });
+//     }
 
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
-      headless: localBrowserLaunchOptions?.headless ?? headless,
-      viewport: {
-        width: localBrowserLaunchOptions?.viewport?.width ?? 1250,
-        height: localBrowserLaunchOptions?.viewport?.height ?? 800,
-      },
-      locale: localBrowserLaunchOptions?.locale ?? "en-US",
-      timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
-      deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
-      args: localBrowserLaunchOptions?.args ?? [
-        "--enable-webgl",
-        "--use-gl=swiftshader",
-        "--enable-accelerated-2d-canvas",
-        "--disable-blink-features=AutomationControlled",
-        "--disable-web-security",
-      ],
-      bypassCSP: localBrowserLaunchOptions?.bypassCSP ?? true,
-      proxy: localBrowserLaunchOptions?.proxy,
-      geolocation: localBrowserLaunchOptions?.geolocation,
-      hasTouch: localBrowserLaunchOptions?.hasTouch ?? true,
-      ignoreHTTPSErrors: localBrowserLaunchOptions?.ignoreHTTPSErrors ?? true,
-      permissions: localBrowserLaunchOptions?.permissions,
-      recordHar: localBrowserLaunchOptions?.recordHar,
-      recordVideo: localBrowserLaunchOptions?.recordVideo,
-      tracesDir: localBrowserLaunchOptions?.tracesDir,
-      extraHTTPHeaders: localBrowserLaunchOptions?.extraHTTPHeaders,
-      chromiumSandbox: localBrowserLaunchOptions?.chromiumSandbox ?? false,
-      devtools: localBrowserLaunchOptions?.devtools ?? false,
-      env: localBrowserLaunchOptions?.env,
-      executablePath: localBrowserLaunchOptions?.executablePath,
-      handleSIGHUP: localBrowserLaunchOptions?.handleSIGHUP ?? true,
-      handleSIGINT: localBrowserLaunchOptions?.handleSIGINT ?? true,
-      handleSIGTERM: localBrowserLaunchOptions?.handleSIGTERM ?? true,
-      ignoreDefaultArgs: localBrowserLaunchOptions?.ignoreDefaultArgs,
-    });
+//     const context = await chromium.launchPersistentContext(userDataDir, {
+//       acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
+//       headless: localBrowserLaunchOptions?.headless ?? headless,
+//       viewport: {
+//         width: localBrowserLaunchOptions?.viewport?.width ?? 1250,
+//         height: localBrowserLaunchOptions?.viewport?.height ?? 800,
+//       },
+//       locale: localBrowserLaunchOptions?.locale ?? "en-US",
+//       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
+//       deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
+//       args: localBrowserLaunchOptions?.args ?? [
+//         "--enable-webgl",
+//         "--use-gl=swiftshader",
+//         "--enable-accelerated-2d-canvas",
+//         "--disable-blink-features=AutomationControlled",
+//         "--disable-web-security",
+//       ],
+//       bypassCSP: localBrowserLaunchOptions?.bypassCSP ?? true,
+//       proxy: localBrowserLaunchOptions?.proxy,
+//       geolocation: localBrowserLaunchOptions?.geolocation,
+//       hasTouch: localBrowserLaunchOptions?.hasTouch ?? true,
+//       ignoreHTTPSErrors: localBrowserLaunchOptions?.ignoreHTTPSErrors ?? true,
+//       permissions: localBrowserLaunchOptions?.permissions,
+//       recordHar: localBrowserLaunchOptions?.recordHar,
+//       recordVideo: localBrowserLaunchOptions?.recordVideo,
+//       tracesDir: localBrowserLaunchOptions?.tracesDir,
+//       extraHTTPHeaders: localBrowserLaunchOptions?.extraHTTPHeaders,
+//       chromiumSandbox: localBrowserLaunchOptions?.chromiumSandbox ?? false,
+//       devtools: localBrowserLaunchOptions?.devtools ?? false,
+//       env: localBrowserLaunchOptions?.env,
+//       executablePath: localBrowserLaunchOptions?.executablePath,
+//       handleSIGHUP: localBrowserLaunchOptions?.handleSIGHUP ?? true,
+//       handleSIGINT: localBrowserLaunchOptions?.handleSIGINT ?? true,
+//       handleSIGTERM: localBrowserLaunchOptions?.handleSIGTERM ?? true,
+//       ignoreDefaultArgs: localBrowserLaunchOptions?.ignoreDefaultArgs,
+//     });
 
-    if (localBrowserLaunchOptions?.cookies) {
-      context.addCookies(localBrowserLaunchOptions.cookies);
-    }
+//     if (localBrowserLaunchOptions?.cookies) {
+//       context.addCookies(localBrowserLaunchOptions.cookies);
+//     }
 
-    logger({
-      category: "init",
-      message: "local browser started successfully.",
-    });
+//     logger({
+//       category: "init",
+//       message: "local browser started successfully.",
+//     });
 
-    await applyStealthScripts(context);
+//     await applyStealthScripts(context);
 
-    return { context, contextPath: userDataDir, env: "LOCAL" };
-  }
-}
+//     return { context, contextPath: userDataDir, env: "LOCAL" };
+//   }
+// }
 
-async function applyStealthScripts(context: BrowserContext) {
-  await context.addInitScript(() => {
-    // Override the navigator.webdriver property
-    Object.defineProperty(navigator, "webdriver", {
-      get: () => undefined,
-    });
+// async function applyStealthScripts(context: BrowserContext) {
+//   await context.addInitScript(() => {
+//     // Override the navigator.webdriver property
+//     Object.defineProperty(navigator, "webdriver", {
+//       get: () => undefined,
+//     });
 
-    // Mock languages and plugins to mimic a real browser
-    Object.defineProperty(navigator, "languages", {
-      get: () => ["en-US", "en"],
-    });
+//     // Mock languages and plugins to mimic a real browser
+//     Object.defineProperty(navigator, "languages", {
+//       get: () => ["en-US", "en"],
+//     });
 
-    Object.defineProperty(navigator, "plugins", {
-      get: () => [1, 2, 3, 4, 5],
-    });
+//     Object.defineProperty(navigator, "plugins", {
+//       get: () => [1, 2, 3, 4, 5],
+//     });
 
-    // Remove Playwright-specific properties
-    delete window.__playwright;
-    delete window.__pw_manual;
-    delete window.__PW_inspect;
+//     // Remove Playwright-specific properties
+//     delete window.__playwright;
+//     delete window.__pw_manual;
+//     delete window.__PW_inspect;
 
-    // Redefine the headless property
-    Object.defineProperty(navigator, "headless", {
-      get: () => false,
-    });
+//     // Redefine the headless property
+//     Object.defineProperty(navigator, "headless", {
+//       get: () => false,
+//     });
 
-    // Override the permissions API
-    const originalQuery = window.navigator.permissions.query;
-    window.navigator.permissions.query = (parameters) =>
-      parameters.name === "notifications"
-        ? Promise.resolve({
-            state: Notification.permission,
-          } as PermissionStatus)
-        : originalQuery(parameters);
-  });
-}
+//     // Override the permissions API
+//     const originalQuery = window.navigator.permissions.query;
+//     window.navigator.permissions.query = (parameters) =>
+//       parameters.name === "notifications"
+//         ? Promise.resolve({
+//           state: Notification.permission,
+//         } as PermissionStatus)
+//         : originalQuery(parameters);
+//   });
+// }
 
 const defaultLogger = async (logLine: LogLine) => {
   console.log(logLineToString(logLine));
@@ -376,6 +378,10 @@ export class Stagehand {
   private waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
+  private nstbrowserParams?: NstbrowserParams;
+  private useLog: boolean = true;
+  private ip: string = "";
+  private profileId: string = "";
 
   constructor(
     {
@@ -399,6 +405,10 @@ export class Stagehand {
       localBrowserLaunchOptions,
       selfHeal = true,
       waitForCaptchaSolves = false,
+      nstbrowserParams,
+      useLog,
+      ip,
+      profileId,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -410,7 +420,7 @@ export class Stagehand {
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.intEnv = env;
-    this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
+    this.apiKey = apiKey ?? process.env.NSTBROWSER_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
@@ -435,6 +445,10 @@ export class Stagehand {
     this.userProvidedInstructions = systemPrompt;
     this.usingAPI = useAPI ?? false;
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
+    this.nstbrowserParams = nstbrowserParams;
+    this.useLog = useLog ?? true;
+    this.ip = ip;
+    this.profileId = profileId;
 
     if (this.usingAPI && env === "LOCAL") {
       throw new Error("API mode can only be used with BROWSERBASE environment");
@@ -523,18 +537,35 @@ export class Stagehand {
       this.browserbaseSessionID = sessionId;
     }
 
+    // const { context, debugUrl, sessionUrl, contextPath, sessionId, env } =
+    // await getBrowser(
+    //   this.apiKey,
+    //   this.projectId,
+    //   this.env,
+    //   this.headless,
+    //   this.logger,
+    //   this.browserbaseSessionCreateParams,
+    //   this.browserbaseSessionID,
+    //   this.localBrowserLaunchOptions,
+    // ).catch((e) => {
+    //   console.error("Error in init:", e);
+    //   const br: BrowserResult = {
+    //     context: undefined,
+    //     debugUrl: undefined,
+    //     sessionUrl: undefined,
+    //     sessionId: undefined,
+    //     env: this.env,
+    //   };
+    //   return br;
+    // });
     const { context, debugUrl, sessionUrl, contextPath, sessionId, env } =
-      await getBrowser(
+      await getNstBrowser(
         this.apiKey,
-        this.projectId,
         this.env,
-        this.headless,
         this.logger,
-        this.browserbaseSessionCreateParams,
-        this.browserbaseSessionID,
-        this.localBrowserLaunchOptions,
-      ).catch((e) => {
-        console.error("Error in init:", e);
+        this.nstbrowserParams,
+        this.profileId,
+      ).catch(() => {
         const br: BrowserResult = {
           context: undefined,
           debugUrl: undefined,
@@ -616,6 +647,7 @@ export class Stagehand {
   private is_processing_browserbase_logs: boolean = false;
 
   log(logObj: LogLine): void {
+    if (!this.useLog) return;
     logObj.level = logObj.level ?? 1;
 
     // Normal Logging

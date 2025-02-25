@@ -83,37 +83,31 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ### Quickstart
 
-To create a new Stagehand project configured to our default settings, run:
-
-```bash
-npx create-browser-app --example quickstart
-```
-
-Read our [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) in the docs for more information.
+Read [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) in the docs for more information.
 
 You can also add Stagehand to an existing Typescript project by running:
 
 ```bash
-npm install @browserbasehq/stagehand zod
+npm install stagehand-nstbrowser zod
 npx playwright install # if running locally
 ```
 
 ### Build and Run from Source
 
 ```bash
-git clone https://github.com/browserbase/stagehand.git
-cd stagehand
+git clone https://github.com/Nstbrowser/stagehand-nstbrowser.git
+cd stagehand-nstbrowser
 npm install
 npx playwright install
 npm run build
 npm run example # run the blank script at ./examples/example.ts
 ```
 
-Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
+Stagehand is best when you have an API key for an LLM provider and Nstbrowser credentials. To add these to your project, run:
 
 ```bash
 cp .env.example .env
-nano .env # Edit the .env file to add API keys
+nano .env # Edit the .env file to add API keys and profile id
 ```
 
 ## Contributing

@@ -1,15 +1,21 @@
-import { google } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { Stagehand } from "@/dist";
 import { AISdkClient } from "./external_clients/aisdk";
 import StagehandConfig from "@/stagehand.config";
 
+const openAI = createOpenAI({
+  apiKey: "your-api-key",
+  baseURL: "https://www.dmxapi.com/v1",
+});
+
 async function example() {
   const stagehand = new Stagehand({
     ...StagehandConfig,
     llmClient: new AISdkClient({
-      model: google("gemini-1.5-flash-latest"),
+      model: openAI.chat("gpt-4o"),
     }),
+    useLog: false,
   });
 
   await stagehand.init();
@@ -36,5 +42,9 @@ async function example() {
 }
 
 (async () => {
-  await example();
+  try {
+    await example();
+  } catch (e) {
+    console.log(e);
+  }
 })();

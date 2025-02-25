@@ -1,6 +1,6 @@
 {
-  "name": "@browserbasehq/stagehand",
-  "version": "1.13.1",
+  "name": "stagehand-nstbrowser",
+  "version": "1.0.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -37,7 +37,7 @@
     "lib/**"
   ],
   "keywords": [],
-  "author": "Browserbase",
+  "author": "nstbrowser <nstbrowser@gmail.com> (https://www.nstbrowser.io)",
   "license": "MIT",
   "devDependencies": {
     "@ai-sdk/google": "^1.0.13",
@@ -81,6 +81,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
     "@browserbasehq/sdk": "^2.0.0",
+    "playwright": "^1.50.1",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"
   },
@@ -91,10 +92,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/browserbase/stagehand.git"
+    "url": "git+https://github.com/Nstbrowser/stagehand-nstbrowser.git"
   },
   "bugs": {
-    "url": "https://github.com/browserbase/stagehand/issues"
+    "url": "https://github.com/Nstbrowser/stagehand-nstbrowser/issues"
   },
-  "homepage": "https://github.com/browserbase/stagehand#readme"
+  "homepage": "https://github.com/Nstbrowser/stagehand-nstbrowser#readme"
 }

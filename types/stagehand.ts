@@ -40,6 +40,18 @@ export interface ConstructorParams {
    */
   waitForCaptchaSolves?: boolean;
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  nstbrowserParams?: NstbrowserParams;
+  useLog?: boolean;
+  ip?: string;
+  profileId?: string;
+}
+
+export interface NstbrowserParams {
+  proxy?: string;
+  platform?: "linux" | "mac" | "windows";
+  kernel?: "chromium";
+  fingerprint?: Record<string, string | number | boolean | object>;
+  args?: Record<string, string | number | boolean | object>;
 }
 
 export interface InitOptions {
